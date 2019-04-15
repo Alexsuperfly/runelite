@@ -164,7 +164,7 @@ class ChatInspector extends JFrame
 	@Subscribe
 	public void onChatMessage(ChatMessage event)
 	{
-		addChatLog(event.getType(), event.getSender(), event.getName(), event.getMessage());
+		addChatLog(event.getType(), event.getSender(), event.getName(), event.getMessageNode().getValue());
 	}
 
 	public void open()
