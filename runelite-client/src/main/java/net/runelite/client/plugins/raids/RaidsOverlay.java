@@ -26,20 +26,24 @@ package net.runelite.client.plugins.raids;
 
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import javax.inject.Inject;
 import lombok.Setter;
 import net.runelite.api.Client;
 import static net.runelite.api.MenuAction.RUNELITE_OVERLAY_CONFIG;
+import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.plugins.raids.solver.Room;
 import net.runelite.client.ui.overlay.Overlay;
 import static net.runelite.client.ui.overlay.OverlayManager.OPTION_CONFIGURE;
 import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.ui.overlay.OverlayPosition;
 import net.runelite.client.ui.overlay.OverlayPriority;
+import net.runelite.client.ui.overlay.components.ComponentConstants;
 import net.runelite.client.ui.overlay.components.LineComponent;
 import net.runelite.client.ui.overlay.components.PanelComponent;
 import net.runelite.client.ui.overlay.components.TitleComponent;
+import net.runelite.client.util.Text;
 
 public class RaidsOverlay extends Overlay
 {
@@ -97,6 +101,27 @@ public class RaidsOverlay extends Overlay
 			.text(layout)
 			.color(color)
 			.build());
+
+		if (config.ccDisplay())
+		{
+			color = Color.ORANGE;
+			FontMetrics metrics = graphics.getFontMetrics();
+			String worldString = "W" + client.getWorld();
+			String clanOwner = Text.removeTags(client.getWidget(WidgetInfo.CLAN_CHAT_OWNER).getText());
+			if (clanOwner.equals("None"))
+			{
+				clanOwner = "Open CC tab...";
+				color = Color.RED;
+			}
+
+			panelComponent.setPreferredSize(new Dimension(Math.max(ComponentConstants.STANDARD_WIDTH, metrics.stringWidth(worldString) + metrics.stringWidth(clanOwner) + 14), 0));
+			panelComponent.getChildren().add(LineComponent.builder()
+				.left(worldString)
+				.right(clanOwner)
+				.leftColor(Color.ORANGE)
+				.rightColor(color)
+				.build());
+		}
 
 		int bossMatches = 0;
 		int bossCount = 0;
