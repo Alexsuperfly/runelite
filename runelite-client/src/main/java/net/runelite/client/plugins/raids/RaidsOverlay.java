@@ -29,8 +29,10 @@ import java.awt.Dimension;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import javax.inject.Inject;
+import lombok.Getter;
 import lombok.Setter;
 import net.runelite.api.Client;
+import static net.runelite.api.MenuAction.RUNELITE_OVERLAY;
 import static net.runelite.api.MenuAction.RUNELITE_OVERLAY_CONFIG;
 import net.runelite.api.widgets.WidgetInfo;
 import net.runelite.client.plugins.raids.solver.Room;
@@ -54,6 +56,7 @@ public class RaidsOverlay extends Overlay
 	private RaidsConfig config;
 	private final PanelComponent panelComponent = new PanelComponent();
 
+	@Getter
 	@Setter
 	private boolean scoutOverlayShown = false;
 
@@ -66,6 +69,7 @@ public class RaidsOverlay extends Overlay
 		this.client = client;
 		this.plugin = plugin;
 		this.config = config;
+		getMenuEntries().add(new OverlayMenuEntry(RUNELITE_OVERLAY, "Screenshot", "Raids overlay"));
 		getMenuEntries().add(new OverlayMenuEntry(RUNELITE_OVERLAY_CONFIG, OPTION_CONFIGURE, "Raids overlay"));
 	}
 

@@ -27,6 +27,8 @@ package net.runelite.client.plugins.raids;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
+import net.runelite.client.config.Keybind;
+import net.runelite.client.util.ImageUploadStyle;
 
 @ConfigGroup("raids")
 public interface RaidsConfig extends Config
@@ -172,5 +174,27 @@ public interface RaidsConfig extends Config
 	default boolean layoutMessage()
 	{
 		return true;
+	}
+
+	@ConfigItem(
+			position = 13,
+			keyName = "hotkey",
+			name = "Scouter screenshot hotkey",
+			description = "Hotkey used to screenshot the scouting overlay"
+	)
+	default Keybind hotkey()
+	{
+		return Keybind.NOT_SET;
+	}
+
+	@ConfigItem(
+			position = 14,
+			keyName = "uploadScreenshot",
+			name = "Upload scouting screenshot",
+			description = "Uploads the scouting screenshot to Imgur or the clipboard"
+	)
+	default ImageUploadStyle uploadScreenshot()
+	{
+		return ImageUploadStyle.CLIPBOARD;
 	}
 }

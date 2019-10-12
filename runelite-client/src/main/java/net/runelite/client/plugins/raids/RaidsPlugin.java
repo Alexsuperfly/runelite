@@ -26,6 +26,10 @@ package net.runelite.client.plugins.raids;
 
 import com.google.inject.Binder;
 import com.google.inject.Provides;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.awt.image.BufferedImage;
 import java.text.DecimalFormat;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -39,6 +43,7 @@ import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.InstanceTemplates;
+import net.runelite.api.MenuAction;
 import net.runelite.api.NullObjectID;
 import static net.runelite.api.Perspective.SCENE_SIZE;
 import net.runelite.api.Point;
@@ -55,8 +60,11 @@ import net.runelite.client.chat.ChatMessageBuilder;
 import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.config.RuneLiteConfig;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.OverlayMenuClicked;
 import net.runelite.client.game.SpriteManager;
+import net.runelite.client.input.KeyManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.plugins.raids.solver.Layout;
@@ -64,6 +72,8 @@ import net.runelite.client.plugins.raids.solver.LayoutSolver;
 import net.runelite.client.plugins.raids.solver.RotationSolver;
 import net.runelite.client.ui.overlay.OverlayManager;
 import net.runelite.client.ui.overlay.infobox.InfoBoxManager;
+import net.runelite.client.util.HotkeyListener;
+import net.runelite.client.util.ImageCapture;
 import net.runelite.client.util.Text;
 import net.runelite.client.ws.PartyMember;
 import net.runelite.client.ws.PartyService;
@@ -85,6 +95,9 @@ public class RaidsPlugin extends Plugin
 	private static final DecimalFormat DECIMAL_FORMAT = new DecimalFormat("###.##");
 	private static final DecimalFormat POINTS_FORMAT = new DecimalFormat("#,###");
 	private static final Pattern ROTATION_REGEX = Pattern.compile("\\[(.*?)]");
+
+	@Inject
+	private RuneLiteConfig runeLiteConfig;
 
 	@Inject
 	private ChatMessageManager chatMessageManager;
@@ -118,6 +131,12 @@ public class RaidsPlugin extends Plugin
 
 	@Inject
 	private WSClient ws;
+
+	@Inject
+	private KeyManager keyManager;
+
+	@Inject
+	private ImageCapture imageCapture;
 
 	@Getter
 	private final ArrayList<String> roomWhitelist = new ArrayList<>();
@@ -157,6 +176,7 @@ public class RaidsPlugin extends Plugin
 		overlayManager.add(overlay);
 		updateLists();
 		clientThread.invokeLater(() -> checkRaidPresence(true));
+		keyManager.registerKeyListener(hotkeyListener);
 	}
 
 	@Override
@@ -167,6 +187,7 @@ public class RaidsPlugin extends Plugin
 		inRaidChambers = false;
 		raid = null;
 		timer = null;
+		keyManager.unregisterKeyListener(hotkeyListener);
 	}
 
 	@Subscribe
@@ -191,6 +212,17 @@ public class RaidsPlugin extends Plugin
 	public void onVarbitChanged(VarbitChanged event)
 	{
 		checkRaidPresence(false);
+	}
+
+	@Subscribe
+	public void onOverlayMenuClicked(OverlayMenuClicked event)
+	{
+		if (event.getEntry().getMenuAction() == MenuAction.RUNELITE_OVERLAY
+			&& event.getEntry().getTarget().equals("Raids overlay")
+			&& event.getEntry().getOption().equals("Screenshot"))
+		{
+			screenshotScoutOverlay();
+		}
 	}
 
 	@Subscribe
@@ -624,5 +656,33 @@ public class RaidsPlugin extends Plugin
 		}
 
 		return room;
+	}
+
+	private final HotkeyListener hotkeyListener = new HotkeyListener(() -> config.hotkey())
+	{
+		@Override
+		public void hotkeyPressed()
+		{
+			screenshotScoutOverlay();
+		}
+	};
+
+	private void screenshotScoutOverlay()
+	{
+		if (!overlay.isScoutOverlayShown())
+		{
+			return;
+		}
+
+		Rectangle overlayDimensions = overlay.getBounds();
+		BufferedImage overlayImage = new BufferedImage(overlayDimensions.width, overlayDimensions.height, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D graphic = overlayImage.createGraphics();
+		graphic.setFont(runeLiteConfig.interfaceFontType().getFont());
+		graphic.setColor(Color.BLACK);
+		graphic.fillRect(0, 0, overlayDimensions.width, overlayDimensions.height);
+		overlay.render(graphic);
+
+		imageCapture.takeScreenshot(overlayImage, "CoX_scout-", false, config.uploadScreenshot());
+		graphic.dispose();
 	}
 }
