@@ -33,6 +33,7 @@ import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.lang.reflect.InvocationTargetException;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
@@ -90,6 +91,8 @@ import net.runelite.client.util.LinkBrowser;
 @Slf4j
 public class ScreenshotPlugin extends Plugin
 {
+	private static final String CHEST_LOOTED_MESSAGE = "You find some treasure in the chest!";
+	private static final Map<Integer, String> CHEST_LOOT_EVENTS = ImmutableMap.of(12127, "The Gauntlet");
 	private static final Pattern NUMBER_PATTERN = Pattern.compile("([0-9]+)");
 	private static final Pattern LEVEL_UP_PATTERN = Pattern.compile(".*Your ([a-zA-Z]+) (?:level is|are)? now (\\d+)\\.");
 	private static final Pattern BOSSKILL_MESSAGE_PATTERN = Pattern.compile("Your (.+) kill count is: <col=ff0000>(\\d+)</col>.");
@@ -344,6 +347,17 @@ public class ScreenshotPlugin extends Plugin
 				String fileName = bossName + "(" + bossKillcount + ")";
 				takeScreenshot(fileName, "Boss Kills");
 			}
+		}
+
+		if (config.screenshotRewards() && chatMessage.equals(CHEST_LOOTED_MESSAGE))
+		{
+			final int regionID = client.getLocalPlayer().getWorldLocation().getRegionID();
+			if (!CHEST_LOOT_EVENTS.containsKey(regionID))
+			{
+				return;
+			}
+			
+			takeScreenshot(CHEST_LOOT_EVENTS.get(regionID), "Chest Loot");
 		}
 
 		if (config.screenshotValuableDrop())
