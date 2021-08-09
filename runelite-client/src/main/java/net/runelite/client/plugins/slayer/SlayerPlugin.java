@@ -36,7 +36,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Predicate;
@@ -185,8 +187,8 @@ public class SlayerPlugin extends Plugin
 	boolean developerMode;
 
 	private final Set<NPC> taggedNpcs = new HashSet<>();
-	private int taggedNpcsDiedPrevTick;
-	private int taggedNpcsDiedThisTick;
+	private final Set<NPC> deadTaggedNpcs = new HashSet<>();
+	private final Queue<Integer> currentlyCountedKills = new LinkedList<Integer>();
 
 	@Getter(AccessLevel.PACKAGE)
 	@Setter(AccessLevel.PACKAGE)
@@ -250,6 +252,8 @@ public class SlayerPlugin extends Plugin
 		removeCounter();
 		targets.clear();
 		taggedNpcs.clear();
+		deadTaggedNpcs.clear();
+		currentlyCountedKills.clear();
 		cachedXp = -1;
 	}
 
@@ -272,6 +276,8 @@ public class SlayerPlugin extends Plugin
 				loginFlag = true;
 				targets.clear();
 				taggedNpcs.clear();
+				deadTaggedNpcs.clear();
+				currentlyCountedKills.clear();
 				break;
 			case LOGGED_IN:
 				migrateConfig();
@@ -352,6 +358,19 @@ public class SlayerPlugin extends Plugin
 		NPC npc = npcDespawned.getNpc();
 		taggedNpcs.remove(npc);
 		targets.remove(npc);
+
+		if (deadTaggedNpcs.contains(npc))
+		{
+			log.debug("Dead Tagged NPC {}#{} has despawned", npc.getName(), npc.getIndex());
+			deadTaggedNpcs.remove(npc);
+
+			// pop the currently counted kills queue, if null the xp drop method has not counted it, otherwise skip
+			Integer lastCountedKill = currentlyCountedKills.poll();
+			if (lastCountedKill == null)
+			{
+				killed(1);
+			}
+		}
 	}
 
 	@Subscribe
@@ -428,8 +447,15 @@ public class SlayerPlugin extends Plugin
 			}
 		}
 
-		taggedNpcsDiedPrevTick = taggedNpcsDiedThisTick;
-		taggedNpcsDiedThisTick = 0;
+		Integer currentlyCountedKillsTop = currentlyCountedKills.peek();
+		if (currentlyCountedKillsTop != null)
+		{
+			// cull the queue of entries greater than 5 ticks old
+			if (client.getTickCount() > currentlyCountedKillsTop + 5)
+			{
+				currentlyCountedKills.remove();
+			}
+		}
 	}
 
 	@Subscribe
@@ -540,22 +566,14 @@ public class SlayerPlugin extends Plugin
 		final int delta = slayerExp - cachedXp;
 		cachedXp = slayerExp;
 
-		log.debug("Slayer xp change delta: {}, killed npcs: {}", delta, taggedNpcsDiedPrevTick);
+		log.debug("Slayer xp change delta: {}, dead npcs: {}", delta, deadTaggedNpcs.size());
 
 		final Task task = Task.getTask(taskName);
-		if (task != null && task.getMinimumKillXp() > 0)
+		if (task != null && delta >= task.getMinimumKillXp())
 		{
-			// Only decrement a kill if the xp drop is above the minimum threshold. This is for Tzhaar and Sire tasks.
-			if (delta >= task.getMinimumKillXp())
-			{
-				killed(max(taggedNpcsDiedPrevTick, 1));
-			}
-		}
-		else
-		{
-			// This is at least one kill, but if we observe multiple tagged NPCs dieing on the previous tick, count them
-			// instead.
-			killed(max(taggedNpcsDiedPrevTick, 1));
+			// always count a kill on xp drop, mark kill as counted so it doesnt double count on despawn
+			killed(1);
+			currentlyCountedKills.add(client.getTickCount());
 		}
 	}
 
@@ -574,11 +592,16 @@ public class SlayerPlugin extends Plugin
 	@Subscribe
 	public void onActorDeath(ActorDeath actorDeath)
 	{
-		Actor actor = actorDeath.getActor();
-		if (taggedNpcs.contains(actor))
+		if (!(actorDeath.getActor() instanceof NPC))
 		{
-			log.debug("Tagged NPC {} has died", actor.getName());
-			++taggedNpcsDiedThisTick;
+			return;
+		}
+
+		NPC npc = (NPC) actorDeath.getActor();
+		if (taggedNpcs.contains(npc))
+		{
+			log.debug("Tagged NPC {}#{} has died", npc.getName(), npc.getIndex());
+			deadTaggedNpcs.add(npc);
 		}
 	}
 
