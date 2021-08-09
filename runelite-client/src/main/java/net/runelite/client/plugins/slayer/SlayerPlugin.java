@@ -185,8 +185,7 @@ public class SlayerPlugin extends Plugin
 	boolean developerMode;
 
 	private final Set<NPC> taggedNpcs = new HashSet<>();
-	private int taggedNpcsDiedPrevTick;
-	private int taggedNpcsDiedThisTick;
+	private final Set<NPC> deadTaggedNpcs = new HashSet<>();
 
 	@Getter(AccessLevel.PACKAGE)
 	@Setter(AccessLevel.PACKAGE)
@@ -250,6 +249,7 @@ public class SlayerPlugin extends Plugin
 		removeCounter();
 		targets.clear();
 		taggedNpcs.clear();
+		deadTaggedNpcs.clear();
 		cachedXp = -1;
 	}
 
@@ -272,6 +272,7 @@ public class SlayerPlugin extends Plugin
 				loginFlag = true;
 				targets.clear();
 				taggedNpcs.clear();
+				deadTaggedNpcs.clear();
 				break;
 			case LOGGED_IN:
 				migrateConfig();
@@ -352,6 +353,13 @@ public class SlayerPlugin extends Plugin
 		NPC npc = npcDespawned.getNpc();
 		taggedNpcs.remove(npc);
 		targets.remove(npc);
+
+		if (deadTaggedNpcs.contains(npc))
+		{
+			log.debug("Dead Tagged NPC {}#{} has despawned", npc.getName(), npc.getIndex());
+			killed(1);
+			deadTaggedNpcs.remove(npc);
+		}
 	}
 
 	@Subscribe
@@ -427,9 +435,6 @@ public class SlayerPlugin extends Plugin
 				removeCounter();
 			}
 		}
-
-		taggedNpcsDiedPrevTick = taggedNpcsDiedThisTick;
-		taggedNpcsDiedThisTick = 0;
 	}
 
 	@Subscribe
@@ -540,22 +545,13 @@ public class SlayerPlugin extends Plugin
 		final int delta = slayerExp - cachedXp;
 		cachedXp = slayerExp;
 
-		log.debug("Slayer xp change delta: {}, killed npcs: {}", delta, taggedNpcsDiedPrevTick);
+		log.debug("Slayer xp change delta: {}, dead npcs: {}", delta, deadTaggedNpcs.size());
 
 		final Task task = Task.getTask(taskName);
-		if (task != null && task.getMinimumKillXp() > 0)
+		if (task != null && deadTaggedNpcs.isEmpty() && delta >= task.getMinimumKillXp())
 		{
-			// Only decrement a kill if the xp drop is above the minimum threshold. This is for Tzhaar and Sire tasks.
-			if (delta >= task.getMinimumKillXp())
-			{
-				killed(max(taggedNpcsDiedPrevTick, 1));
-			}
-		}
-		else
-		{
-			// This is at least one kill, but if we observe multiple tagged NPCs dieing on the previous tick, count them
-			// instead.
-			killed(max(taggedNpcsDiedPrevTick, 1));
+			// for use when dead npc could be off screen, otherwise count the kill on despawn
+			killed(1);
 		}
 	}
 
@@ -574,11 +570,16 @@ public class SlayerPlugin extends Plugin
 	@Subscribe
 	public void onActorDeath(ActorDeath actorDeath)
 	{
-		Actor actor = actorDeath.getActor();
-		if (taggedNpcs.contains(actor))
+		if (!(actorDeath.getActor() instanceof NPC))
 		{
-			log.debug("Tagged NPC {} has died", actor.getName());
-			++taggedNpcsDiedThisTick;
+			return;
+		}
+
+		NPC npc = (NPC) actorDeath.getActor();
+		if (taggedNpcs.contains(npc))
+		{
+			log.debug("Tagged NPC {}#{} has died", npc.getName(), npc.getIndex());
+			deadTaggedNpcs.add(npc);
 		}
 	}
 
