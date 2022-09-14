@@ -257,11 +257,6 @@ public class ChatFilterPlugin extends Plugin
 
 		String message = censorMessage(event.getActor().getName(), event.getOverheadText());
 
-		if (message == null)
-		{
-			message = " ";
-		}
-
 		event.getActor().setOverheadText(message);
 	}
 
